@@ -1,0 +1,338 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { 
+  Download, Home, Library, Search, Folder, FolderInput, 
+  MoreVertical, CheckCircle2, Loader2, XCircle, Music, 
+  ChevronDown, ChevronUp, Trash2, Edit3, CheckSquare, Square, Save, Plus 
+} from 'lucide-react';
+import './index.css';
+
+const App = () => {
+  const [activeTab, setActiveTab] = useState('home');
+  const [customPath, setCustomPath] = useState('Padrão (/Music/YouTubeDownloads)');
+  const [realPath, setRealPath] = useState(null);
+  const [defaultPath, setDefaultPath] = useState('');
+  
+  const [libraryItems, setLibraryItems] = useState([]);
+  const [downloadsQueue, setDownloadsQueue] = useState([]);
+
+  const [url, setUrl] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewType, setPreviewType] = useState(null);
+  
+  const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [playlistTitle, setPlaylistTitle] = useState('');
+
+  const [renamingItem, setRenamingItem] = useState(null);
+  const [newNameInput, setNewNameInput] = useState('');
+  const [showSingleVideoFolderModal, setShowSingleVideoFolderModal] = useState(false);
+  const [singleVideoFolderName, setSingleVideoFolderName] = useState('');
+  
+  useEffect(() => {
+    const loadDefaultPath = async () => {
+      try {
+        const path = await window.electronAPI.getDefaultPath();
+        if (path) setDefaultPath(path);
+      } catch (e) { console.error(e); }
+    };
+    loadDefaultPath();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (url.trim()) analyzeLink(url);
+      else resetPreview();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [url]);
+
+  useEffect(() => {
+    const handleComplete = ({ success, title }) => {
+      setDownloadsQueue(prev => prev.map(download => {
+        if (download.type === 'video' && download.items[0].title === title) {
+           return { ...download, status: success ? 'success' : 'error', progress: 100 };
+        }
+        if (download.type === 'playlist' && download.items.some(i => i.title === title)) {
+          const updatedItems = download.items.map(subItem => 
+            subItem.title === title ? { ...subItem, status: success ? 'success' : 'error' } : subItem
+          );
+          const completedCount = updatedItems.filter(i => i.status === 'success' || i.status === 'error').length;
+          const progress = Math.round((completedCount / updatedItems.length) * 100);
+          return { ...download, items: updatedItems, progress, status: progress === 100 ? 'success' : 'downloading' };
+        }
+        return download;
+      }));
+    };
+    if (window.electronAPI?.onVideoDownloadComplete) window.electronAPI.onVideoDownloadComplete(handleComplete);
+    return () => window.electronAPI?.removeAllVideoDownloadCompleteListeners?.();
+  }, []);
+
+  const sanitize = (name) => name ? name.replace(/[<>:"/\\|?*]/g, '').trim() : '';
+  
+  const getThumbnail = (item) => {
+    if (item.thumbnail) return item.thumbnail;
+    if (item.thumbnails && Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
+        return item.thumbnails[item.thumbnails.length - 1].url;
+    }
+    return 'https://via.placeholder.com/320x180/18181b/52525b?text=Audio';
+  };
+
+  const resetPreview = () => {
+    setPreviewData(null); setPreviewType(null); setIsPlaylistExpanded(false); setSelectedItems(new Set()); setPlaylistTitle('');
+  };
+
+  const analyzeLink = async (inputUrl) => {
+    setAnalyzing(true);
+    resetPreview();
+    try {
+      console.log("Analisando URL:", inputUrl);
+      const analysis = window.electronAPI.analyzeUrl(inputUrl);
+      
+      if (analysis.tipo === 'invalida') {
+        alert("URL inválida. Verifique o link.");
+        return;
+      }
+
+      if (analysis.tipo === 'video') {
+        const info = await window.electronAPI.fetchVideoInfo(inputUrl);
+        
+        // DEBUG: Verifica o que chegou do backend
+        console.log("Info recebida:", info);
+
+        if (!info) {
+          alert("Erro: O Backend não retornou nenhuma resposta (undefined). Verifique os logs do terminal.");
+          return;
+        }
+
+        if (!info.error) {
+          setPreviewData([info]);
+          setPreviewType('video');
+        } else {
+          alert(`Erro ao buscar vídeo: ${info.error}`);
+        }
+
+      } else if (analysis.tipo === 'playlist') {
+        const result = await window.electronAPI.fetchPlaylistItems(inputUrl);
+        
+        // DEBUG: Verifica o que chegou do backend
+        console.log("Playlist recebida:", result);
+
+        if (!result) {
+          alert("Erro: O Backend não retornou nenhuma resposta (undefined). Verifique os logs do terminal.");
+          return;
+        }
+
+        if (!result.error && result.items && result.items.length > 0) {
+          setPreviewData(result.items);
+          setPlaylistTitle(result.playlistTitle);
+          setPreviewType('playlist');
+          setSelectedItems(new Set(result.items.map(i => i.id)));
+        } else {
+          const msg = result.error || (result.items?.length === 0 ? "Playlist vazia" : "Erro desconhecido");
+          alert(`Erro ao buscar playlist: ${msg}`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert(`Erro Crítico no Frontend: ${e.message}`);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleSelectFolder = async () => {
+    const path = await window.electronAPI.selectFolder();
+    if (path) { setRealPath(path); setCustomPath(path); }
+  };
+
+  const initiateDownloadProcess = () => {
+    if (!previewData) return;
+    if (previewType === 'video') {
+      setSingleVideoFolderName(sanitize(previewData[0].title));
+      setShowSingleVideoFolderModal(true);
+    } else {
+      executeDownload(false, null);
+    }
+  };
+
+  // --- FUNÇÃO CORRIGIDA E SIMPLIFICADA ---
+  const executeDownload = async (shouldCreateFolder, userFolderName) => {
+    setShowSingleVideoFolderModal(false);
+
+    const itemsToDownload = previewData.filter(item => previewType === 'video' ? true : selectedItems.has(item.id));
+    if (itemsToDownload.length === 0) return alert("Selecione pelo menos um item.");
+
+    const downloadTitle = previewType === 'video' ? itemsToDownload[0].title : playlistTitle;
+    const mainThumbnail = getThumbnail(itemsToDownload[0]);
+
+    // 1. Lógica Definitiva do Nome da Subpasta
+    let finalSubFolderName = null;
+    
+    if (previewType === 'playlist') {
+        // Se é playlist, a subpasta é OBRIGATÓRIA e é o nome da playlist
+        finalSubFolderName = sanitize(downloadTitle);
+    } else if (previewType === 'video' && shouldCreateFolder) {
+        // Se é vídeo E o usuário pediu pasta, usa o nome digitado (ou o título)
+        finalSubFolderName = sanitize(userFolderName || downloadTitle);
+    }
+
+    // 2. Caminhos
+    const baseFolder = realPath || defaultPath || "Downloads";
+    // Se tiver subpasta, o caminho visual é Base/Sub. Se não, é só Base.
+    const visualPath = finalSubFolderName ? `${baseFolder}/${finalSubFolderName}` : baseFolder;
+
+    const newDownloadItem = {
+      id: Date.now(),
+      type: previewType,
+      title: finalSubFolderName || downloadTitle,
+      thumbnail: mainThumbnail,
+      status: 'downloading',
+      progress: 0,
+      path: visualPath,
+      items: itemsToDownload.map(i => ({...i, status: 'pending'})),
+      total: itemsToDownload.length
+    };
+
+    setDownloadsQueue(prev => [newDownloadItem, ...prev]);
+    setUrl('');
+    setActiveTab('downloads');
+
+    // 3. Envio para o Backend
+    if (previewType === 'video') {
+      const res = await window.electronAPI.downloadVideo({
+        url: itemsToDownload[0].url || url,
+        title: itemsToDownload[0].title,
+        videoId: itemsToDownload[0].videoId || itemsToDownload[0].id,
+        targetFolder: realPath, // Pasta raiz escolhida (ou null)
+        subFolder: finalSubFolderName // <--- AQUI ESTAVA O ERRO, AGORA VAI O NOME CERTO
+      });
+
+      setDownloadsQueue(prev => prev.map(d => d.id === newDownloadItem.id ? { ...d, status: res.success ? 'success' : 'error', progress: 100 } : d));
+
+      // Adiciona na biblioteca se criou pasta
+      if (shouldCreateFolder && res.success) {
+        setLibraryItems(prev => [{
+          id: newDownloadItem.id,
+          title: finalSubFolderName,
+          count: itemsToDownload.length,
+          thumbnail: mainThumbnail,
+          path: res.finalPath, 
+          fullPath: res.finalPath
+        }, ...prev]);
+      }
+
+    } else {
+      // Playlist
+      // Monta o caminho físico se tiver realPath para ajudar o backend
+      let folderParam = null;
+      if (realPath && finalSubFolderName) {
+         // Se tem realPath, tenta mandar o caminho completo
+         // Mas o backend já deve ser esperto. Vamos mandar o subFolder via playlistTitle que é o hack atual do backend
+      }
+
+      await window.electronAPI.downloadAllVideos({ 
+        items: itemsToDownload, 
+        folder: folderParam, 
+        playlistTitle: finalSubFolderName // Backend usa isso para criar a pasta
+      });
+
+      // Biblioteca Playlist
+      const estimatedPath = realPath ? `${realPath}/${finalSubFolderName}` : `${defaultPath}/${finalSubFolderName}`;
+      setLibraryItems(prev => [{
+        id: newDownloadItem.id,
+        title: finalSubFolderName, // Usa o nome sanitizado da pasta
+        count: itemsToDownload.length,
+        thumbnail: mainThumbnail,
+        path: visualPath,
+        fullPath: estimatedPath
+      }, ...prev]);
+    }
+  };
+
+  const deleteLibraryItem = async (id) => {
+    const item = libraryItems.find(i => i.id === id);
+    if (!item) return;
+    if (confirm(`Excluir "${item.title}"?\nIsso apagará a pasta e os arquivos.`)) {
+      if (item.fullPath) await window.electronAPI.deleteFolder(item.fullPath);
+      setLibraryItems(prev => prev.filter(i => i.id !== id));
+    }
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!renamingItem || !newNameInput.trim()) return;
+    if (renamingItem.fullPath) {
+      const res = await window.electronAPI.renameFolder({ oldPath: renamingItem.fullPath, newName: newNameInput });
+      if (res.success) setLibraryItems(prev => prev.map(i => i.id === renamingItem.id ? { ...i, title: res.newName, fullPath: res.newPath, path: res.newPath } : i));
+      else alert("Erro: " + res.error);
+    }
+    setRenamingItem(null);
+  };
+
+  return (
+    <div className="flex h-screen bg-zinc-950 font-sans selection:bg-amber-500/30 text-zinc-100 relative">
+      {showSingleVideoFolderModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center animate-fade-in backdrop-blur-sm">
+          <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-700 shadow-2xl w-[450px]">
+            <h3 className="text-xl font-bold mb-2 text-white">Organizar Download</h3>
+            <p className="text-zinc-400 text-sm mb-6">Deseja criar uma pasta específica para esta música?</p>
+            <div className="mb-6"><label className="text-xs text-amber-500 font-bold mb-1 block uppercase">Nome da Pasta Sugerido</label><input autoFocus type="text" value={singleVideoFolderName} onChange={(e) => setSingleVideoFolderName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-amber-500" /></div>
+            <div className="flex justify-between gap-3"><button onClick={() => executeDownload(false, null)} className="px-4 py-3 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition text-sm flex-1">Não, salvar solto</button><button onClick={() => executeDownload(true, singleVideoFolderName)} className="px-4 py-3 rounded-lg bg-amber-500 text-zinc-900 font-bold hover:bg-amber-400 transition text-sm flex-1 flex justify-center items-center gap-2"><Plus size={16}/> Sim, criar pasta</button></div>
+          </div>
+        </div>
+      )}
+      {renamingItem && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center animate-fade-in backdrop-blur-sm">
+          <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-700 shadow-2xl w-96">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Edit3 size={18} className="text-amber-500"/> Renomear</h3>
+            <input autoFocus type="text" value={newNameInput} onChange={(e) => setNewNameInput(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 mb-4 text-white outline-none focus:border-amber-500" />
+            <div className="flex justify-end gap-3"><button onClick={() => setRenamingItem(null)} className="px-4 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition text-sm">Cancelar</button><button onClick={handleRenameConfirm} className="px-4 py-2 rounded-lg bg-amber-500 text-zinc-900 font-bold hover:bg-amber-400 transition text-sm flex items-center gap-2"><Save size={16}/> Salvar</button></div>
+          </div>
+        </div>
+      )}
+      <aside className="w-64 bg-zinc-950 border-r border-zinc-900 flex flex-col p-4 shrink-0">
+        <div className="flex items-center gap-3 px-2 mb-8 mt-2"><div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20"><Download className="text-zinc-950" size={20} strokeWidth={3} /></div><span className="text-xl font-bold tracking-tight">TubeFetch</span></div>
+        <nav className="space-y-1 flex-1">
+          <SidebarBtn icon={Home} label="Home" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
+          <SidebarBtn icon={Download} label="Downloads" active={activeTab === 'downloads'} onClick={() => setActiveTab('downloads')} count={downloadsQueue.filter(d => d.status === 'downloading').length} />
+          <SidebarBtn icon={Library} label="Biblioteca" active={activeTab === 'library'} onClick={() => setActiveTab('library')} />
+        </nav>
+      </aside>
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-16 border-b border-zinc-900 flex items-center justify-between px-8 bg-zinc-950 shrink-0"><div className="flex-1 max-w-md relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={18} /><input type="text" placeholder="Pesquisar..." className="w-full bg-zinc-900 border border-zinc-800 rounded-full pl-10 pr-4 py-2 text-sm outline-none focus:border-amber-500/50 transition" /></div></header>
+        <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
+          {activeTab === 'home' && (
+            <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+              <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 shadow-2xl">
+                <h2 className="text-lg font-bold mb-1">Novo Download</h2>
+                <p className="text-zinc-400 text-sm mb-6">Cole o link do YouTube para começar</p>
+                <div className="relative mb-4"><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} disabled={downloadsQueue.some(d => d.status === 'downloading')} placeholder="https://youtube.com..." className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-4 pl-4 pr-24 outline-none focus:border-amber-500 transition font-mono text-sm text-amber-500 disabled:opacity-50" /><div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1"><button onClick={handleSelectFolder} title="Alterar destino" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><FolderInput size={20}/></button><button onClick={() => window.electronAPI.openDownloadsFolder()} title="Abrir pasta" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><Folder size={20}/></button></div></div>
+                <div className="text-xs text-zinc-500 mb-6 flex gap-2"><span>Salvando em:</span><span className="text-zinc-300 truncate max-w-md">{customPath}</span></div>
+                <button onClick={initiateDownloadProcess} disabled={analyzing || !previewData || (previewType === 'playlist' && selectedItems.size === 0)} className={`w-full py-3 rounded-lg font-bold text-zinc-900 transition ${analyzing || !previewData ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-500 hover:bg-amber-400'}`}>{analyzing ? 'Analisando...' : previewData ? `Baixar ${previewType === 'playlist' ? `(${selectedItems.size} itens)` : 'Vídeo'}` : 'Analisar'}</button>
+              </div>
+              {previewData && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden animate-fade-in">
+                  <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-800/50">
+                    <div className="flex items-center gap-3">
+                       {previewType === 'video' ? (<img src={previewData[0].thumbnails.pop().url} className="w-16 h-10 object-cover rounded" />) : (<div className="flex -space-x-2">{previewData.slice(0,3).map(i => <img key={i.id} src={i.thumbnail} className="w-10 h-10 rounded-full border-2 border-zinc-900" />)}</div>)}
+                       <div><h3 className="font-bold text-sm">{previewType === 'video' ? previewData[0].title : playlistTitle}</h3><p className="text-xs text-zinc-500">{previewType === 'video' ? 'Vídeo Único' : `${previewData.length} faixas encontradas`}</p></div>
+                    </div>
+                    {previewType === 'playlist' && (<button onClick={() => setIsPlaylistExpanded(!isPlaylistExpanded)} className="flex items-center gap-2 text-xs font-bold text-amber-500 hover:bg-amber-500/10 px-3 py-1.5 rounded transition">{isPlaylistExpanded ? 'Recolher' : 'Selecionar Faixas'} {isPlaylistExpanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</button>)}
+                  </div>
+                  {isPlaylistExpanded && previewType === 'playlist' && (<div className="bg-zinc-900 max-h-[300px] overflow-y-auto p-2"><div className="flex justify-end px-2 mb-2"><button onClick={() => {if (selectedItems.size === previewData.length) setSelectedItems(new Set()); else setSelectedItems(new Set(previewData.map(i => i.id)));}} className="text-xs text-zinc-400 hover:text-white flex items-center gap-1">{selectedItems.size === previewData.length ? <CheckSquare size={14}/> : <Square size={14}/>} {selectedItems.size === previewData.length ? 'Desmarcar Tudo' : 'Selecionar Tudo'}</button></div>{previewData.map(item => (<div key={item.id} onClick={() => {const newSet = new Set(selectedItems); if (newSet.has(item.id)) newSet.delete(item.id); else newSet.add(item.id); setSelectedItems(newSet);}} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition border border-transparent ${selectedItems.has(item.id) ? 'bg-zinc-900 border-amber-500/30' : 'hover:bg-zinc-900'}`}><div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedItems.has(item.id) ? 'bg-amber-500 border-amber-500 text-zinc-900' : 'border-zinc-600'}`}>{selectedItems.has(item.id) && <CheckCircle2 size={14}/>}</div><img src={item.thumbnail} className="w-12 h-8 object-cover rounded" /><p className={`text-sm truncate flex-1 ${selectedItems.has(item.id) ? 'text-white' : 'text-zinc-500'}`}>{item.title}</p></div>))}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'downloads' && (<div className="max-w-5xl mx-auto space-y-4 animate-fade-in">{downloadsQueue.map(download => (<div key={download.id} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4"><div className="flex gap-4"><img src={download.thumbnail} className="w-24 h-16 object-cover rounded bg-zinc-950" /><div className="flex-1 min-w-0"><div className="flex justify-between mb-2"><h3 className="font-bold truncate">{download.title}</h3><StatusBadge status={download.status} /></div><div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative"><div className={`h-full transition-all duration-500 ${download.status === 'success' ? 'bg-green-500' : download.status === 'error' ? 'bg-red-500' : 'bg-amber-500'}`} style={{width: `${download.progress}%`}} /></div><div className="flex justify-between text-xs text-zinc-500 mt-1"><span>{download.type === 'playlist' ? `${download.items.filter(i=>i.status==='success').length}/${download.total} concluídos` : ''}</span><span>{download.progress}%</span></div></div></div></div>))}</div>)}
+          {activeTab === 'library' && (<div className="max-w-6xl mx-auto animate-fade-in grid grid-cols-1 md:grid-cols-3 gap-6">{libraryItems.map(item => (<LibraryCard key={item.id} item={item} onRename={() => {setRenamingItem(item); setNewNameInput(item.title);}} onDelete={() => deleteLibraryItem(item.id)} />))}</div>)}
+        </div>
+      </main>
+    </div>
+  );
+};
+const LibraryCard = ({ item, onRename, onDelete }) => {const [showMenu, setShowMenu] = useState(false); const menuRef = useRef(null); useEffect(() => {const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); }; document.addEventListener('mousedown', handleClick); return () => document.removeEventListener('mousedown', handleClick);}, []); return (<div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 group relative hover:border-zinc-600 transition"><div className="h-32 bg-zinc-950 relative"><img src={item.thumbnail} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" /><div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" /><div className="absolute top-2 right-2" ref={menuRef}><button onClick={() => setShowMenu(!showMenu)} className="p-1.5 bg-zinc-950/80 rounded-full text-zinc-400 hover:text-white transition"><MoreVertical size={16}/></button>{showMenu && (<div className="absolute right-0 top-8 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-32 z-10 flex flex-col text-sm"><button onClick={() => { onRename(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 flex items-center gap-2"><Edit3 size={14}/> Renomear</button><button onClick={() => { onDelete(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 text-red-400 flex items-center gap-2"><Trash2 size={14}/> Remover</button></div>)}</div><span className="absolute bottom-2 right-2 bg-zinc-950/80 text-xs px-2 py-1 rounded text-zinc-300 flex items-center gap-1"><Music size={12}/> {item.count}</span></div><div className="p-4"><h3 className="font-bold text-zinc-100 truncate" title={item.title}>{item.title}</h3><p className="text-xs text-zinc-500 mt-1 flex items-center gap-1 truncate"><Folder size={10} /> {item.path}</p></div></div>);};
+const SidebarBtn = ({ icon: Icon, label, active, onClick, count }) => (<button onClick={onClick} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition ${active ? 'bg-zinc-900 text-amber-500' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'}`}><div className="flex items-center gap-3"><Icon size={20} /><span>{label}</span></div>{count > 0 && <span className="bg-amber-500 text-zinc-900 text-xs font-bold px-1.5 py-0.5 rounded">{count}</span>}</button>);
+const StatusBadge = ({ status }) => {if (status === 'success') return <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Sucesso</span>; if (status === 'error') return <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded flex items-center gap-1"><XCircle size={12}/> Erro</span>; return <span className="text-xs bg-amber-500/10 text-amber-500 px-2 py-1 rounded flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Baixando</span>;};
+const container = document.getElementById('root'); const root = createRoot(container); root.render(<App />);
