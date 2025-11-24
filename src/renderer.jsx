@@ -8,6 +8,7 @@ import {
 import './index.css';
 
 const App = () => {
+  // --- ESTADOS ---
   const [activeTab, setActiveTab] = useState('home');
   const [customPath, setCustomPath] = useState('Padrão (/Music/YouTubeDownloads)');
   const [realPath, setRealPath] = useState(null);
@@ -30,6 +31,7 @@ const App = () => {
   const [showSingleVideoFolderModal, setShowSingleVideoFolderModal] = useState(false);
   const [singleVideoFolderName, setSingleVideoFolderName] = useState('');
   
+  // --- EFEITOS ---
   useEffect(() => {
     const loadDefaultPath = async () => {
       try {
@@ -69,6 +71,7 @@ const App = () => {
     return () => window.electronAPI?.removeAllVideoDownloadCompleteListeners?.();
   }, []);
 
+  // --- HELPERS ---
   const sanitize = (name) => name ? name.replace(/[<>:"/\\|?*]/g, '').trim() : '';
   
   const getThumbnail = (item) => {
@@ -84,62 +87,22 @@ const App = () => {
   };
 
   const analyzeLink = async (inputUrl) => {
-    setAnalyzing(true);
-    resetPreview();
+    setAnalyzing(true); resetPreview();
     try {
-      console.log("Analisando URL:", inputUrl);
+      // console.log("Analisando:", inputUrl); 
       const analysis = window.electronAPI.analyzeUrl(inputUrl);
       
-      if (analysis.tipo === 'invalida') {
-        alert("URL inválida. Verifique o link.");
-        return;
-      }
-
       if (analysis.tipo === 'video') {
         const info = await window.electronAPI.fetchVideoInfo(inputUrl);
-        
-        // DEBUG: Verifica o que chegou do backend
-        console.log("Info recebida:", info);
-
-        if (!info) {
-          alert("Erro: O Backend não retornou nenhuma resposta (undefined). Verifique os logs do terminal.");
-          return;
-        }
-
-        if (!info.error) {
-          setPreviewData([info]);
-          setPreviewType('video');
-        } else {
-          alert(`Erro ao buscar vídeo: ${info.error}`);
-        }
-
+        if (!info.error) { setPreviewData([info]); setPreviewType('video'); }
+        else console.error(info.error); 
       } else if (analysis.tipo === 'playlist') {
         const result = await window.electronAPI.fetchPlaylistItems(inputUrl);
-        
-        // DEBUG: Verifica o que chegou do backend
-        console.log("Playlist recebida:", result);
-
-        if (!result) {
-          alert("Erro: O Backend não retornou nenhuma resposta (undefined). Verifique os logs do terminal.");
-          return;
-        }
-
-        if (!result.error && result.items && result.items.length > 0) {
-          setPreviewData(result.items);
-          setPlaylistTitle(result.playlistTitle);
-          setPreviewType('playlist');
-          setSelectedItems(new Set(result.items.map(i => i.id)));
-        } else {
-          const msg = result.error || (result.items?.length === 0 ? "Playlist vazia" : "Erro desconhecido");
-          alert(`Erro ao buscar playlist: ${msg}`);
+        if (!result.error && result.items.length > 0) {
+          setPreviewData(result.items); setPlaylistTitle(result.playlistTitle); setPreviewType('playlist'); setSelectedItems(new Set(result.items.map(i => i.id)));
         }
       }
-    } catch (e) {
-      console.error(e);
-      alert(`Erro Crítico no Frontend: ${e.message}`);
-    } finally {
-      setAnalyzing(false);
-    }
+    } catch (e) { console.error(e); } finally { setAnalyzing(false); }
   };
 
   const handleSelectFolder = async () => {
@@ -157,8 +120,7 @@ const App = () => {
     }
   };
 
-  // --- FUNÇÃO CORRIGIDA E SIMPLIFICADA ---
-  const executeDownload = async (shouldCreateFolder, userFolderName) => {
+  const executeDownload = async (createSubFolderForSingle, subFolderName) => {
     setShowSingleVideoFolderModal(false);
 
     const itemsToDownload = previewData.filter(item => previewType === 'video' ? true : selectedItems.has(item.id));
@@ -167,20 +129,14 @@ const App = () => {
     const downloadTitle = previewType === 'video' ? itemsToDownload[0].title : playlistTitle;
     const mainThumbnail = getThumbnail(itemsToDownload[0]);
 
-    // 1. Lógica Definitiva do Nome da Subpasta
     let finalSubFolderName = null;
-    
     if (previewType === 'playlist') {
-        // Se é playlist, a subpasta é OBRIGATÓRIA e é o nome da playlist
         finalSubFolderName = sanitize(downloadTitle);
-    } else if (previewType === 'video' && shouldCreateFolder) {
-        // Se é vídeo E o usuário pediu pasta, usa o nome digitado (ou o título)
-        finalSubFolderName = sanitize(userFolderName || downloadTitle);
+    } else if (previewType === 'video' && createSubFolderForSingle) {
+        finalSubFolderName = sanitize(subFolderName || downloadTitle);
     }
 
-    // 2. Caminhos
     const baseFolder = realPath || defaultPath || "Downloads";
-    // Se tiver subpasta, o caminho visual é Base/Sub. Se não, é só Base.
     const visualPath = finalSubFolderName ? `${baseFolder}/${finalSubFolderName}` : baseFolder;
 
     const newDownloadItem = {
@@ -195,24 +151,29 @@ const App = () => {
       total: itemsToDownload.length
     };
 
+    // Adiciona na fila
     setDownloadsQueue(prev => [newDownloadItem, ...prev]);
+    
+    // Limpa input para o próximo, mas NÃO muda a aba, permitindo baixar outro em seguida
     setUrl('');
-    setActiveTab('downloads');
+    resetPreview(); 
+    // setActiveTab('downloads'); <--- REMOVIDO PARA PERMITIR DOWNLOADS EM CADEIA
 
-    // 3. Envio para o Backend
+    // --- DISPARO ---
     if (previewType === 'video') {
+      const videoUrl = itemsToDownload[0].url || url;
+      
       const res = await window.electronAPI.downloadVideo({
-        url: itemsToDownload[0].url || url,
+        url: videoUrl, 
         title: itemsToDownload[0].title,
         videoId: itemsToDownload[0].videoId || itemsToDownload[0].id,
-        targetFolder: realPath, // Pasta raiz escolhida (ou null)
-        subFolder: finalSubFolderName // <--- AQUI ESTAVA O ERRO, AGORA VAI O NOME CERTO
+        targetFolder: realPath,
+        subFolder: finalSubFolderName
       });
-
+      
       setDownloadsQueue(prev => prev.map(d => d.id === newDownloadItem.id ? { ...d, status: res.success ? 'success' : 'error', progress: 100 } : d));
 
-      // Adiciona na biblioteca se criou pasta
-      if (shouldCreateFolder && res.success) {
+      if (createSubFolderForSingle && res.success) {
         setLibraryItems(prev => [{
           id: newDownloadItem.id,
           title: finalSubFolderName,
@@ -225,28 +186,26 @@ const App = () => {
 
     } else {
       // Playlist
-      // Monta o caminho físico se tiver realPath para ajudar o backend
       let folderParam = null;
       if (realPath && finalSubFolderName) {
-         // Se tem realPath, tenta mandar o caminho completo
-         // Mas o backend já deve ser esperto. Vamos mandar o subFolder via playlistTitle que é o hack atual do backend
+         const separator = window.electronAPI.isWindows ? '\\' : '/';
+         folderParam = realPath + separator + finalSubFolderName;
       }
 
       await window.electronAPI.downloadAllVideos({ 
         items: itemsToDownload, 
         folder: folderParam, 
-        playlistTitle: finalSubFolderName // Backend usa isso para criar a pasta
+        playlistTitle: finalSubFolderName
       });
 
-      // Biblioteca Playlist
       const estimatedPath = realPath ? `${realPath}/${finalSubFolderName}` : `${defaultPath}/${finalSubFolderName}`;
       setLibraryItems(prev => [{
         id: newDownloadItem.id,
-        title: finalSubFolderName, // Usa o nome sanitizado da pasta
+        title: finalSubFolderName,
         count: itemsToDownload.length,
         thumbnail: mainThumbnail,
         path: visualPath,
-        fullPath: estimatedPath
+        fullPath: folderParam || estimatedPath
       }, ...prev]);
     }
   };
@@ -307,7 +266,24 @@ const App = () => {
               <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 shadow-2xl">
                 <h2 className="text-lg font-bold mb-1">Novo Download</h2>
                 <p className="text-zinc-400 text-sm mb-6">Cole o link do YouTube para começar</p>
-                <div className="relative mb-4"><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} disabled={downloadsQueue.some(d => d.status === 'downloading')} placeholder="https://youtube.com..." className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-4 pl-4 pr-24 outline-none focus:border-amber-500 transition font-mono text-sm text-amber-500 disabled:opacity-50" /><div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1"><button onClick={handleSelectFolder} title="Alterar destino" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><FolderInput size={20}/></button><button onClick={() => window.electronAPI.openDownloadsFolder()} title="Abrir pasta" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><Folder size={20}/></button></div></div>
+                
+                {/* --- AQUI ESTÁ A CORREÇÃO NO INPUT --- */}
+                <div className="relative mb-4">
+                  <input 
+                    type="text" 
+                    value={url} 
+                    onChange={(e) => setUrl(e.target.value)} 
+                    disabled={analyzing} // Só bloqueia se estiver analisando o link atual
+                    placeholder="https://youtube.com..." 
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-4 pl-4 pr-24 outline-none focus:border-amber-500 transition font-mono text-sm text-amber-500 disabled:opacity-50" 
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <button onClick={handleSelectFolder} title="Alterar destino" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><FolderInput size={20}/></button>
+                    <button onClick={() => window.electronAPI.openDownloadsFolder()} title="Abrir pasta" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><Folder size={20}/></button>
+                  </div>
+                </div>
+                {/* ---------------------------------------- */}
+
                 <div className="text-xs text-zinc-500 mb-6 flex gap-2"><span>Salvando em:</span><span className="text-zinc-300 truncate max-w-md">{customPath}</span></div>
                 <button onClick={initiateDownloadProcess} disabled={analyzing || !previewData || (previewType === 'playlist' && selectedItems.size === 0)} className={`w-full py-3 rounded-lg font-bold text-zinc-900 transition ${analyzing || !previewData ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-500 hover:bg-amber-400'}`}>{analyzing ? 'Analisando...' : previewData ? `Baixar ${previewType === 'playlist' ? `(${selectedItems.size} itens)` : 'Vídeo'}` : 'Analisar'}</button>
               </div>
