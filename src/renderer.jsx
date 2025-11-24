@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { 
   Download, Home, Library, Search, Folder, FolderInput, 
   MoreVertical, CheckCircle2, Loader2, XCircle, Music, 
-  ChevronDown, ChevronUp, Trash2, Edit3, CheckSquare, Square, Save, Plus 
+  ChevronDown, ChevronUp, Trash2, Edit3, CheckSquare, Square, Save, Plus, Clock, AlertTriangle 
 } from 'lucide-react';
 import './index.css';
 
@@ -16,6 +16,7 @@ const App = () => {
   
   const [libraryItems, setLibraryItems] = useState([]);
   const [downloadsQueue, setDownloadsQueue] = useState([]);
+  const [isLoaded, setIsLoaded] = useState(false); // Para evitar salvar antes de carregar
 
   const [url, setUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -31,16 +32,52 @@ const App = () => {
   const [showSingleVideoFolderModal, setShowSingleVideoFolderModal] = useState(false);
   const [singleVideoFolderName, setSingleVideoFolderName] = useState('');
   
-  // --- EFEITOS ---
+  // --- EFEITOS DE INICIALIZAÇÃO E SALVAMENTO ---
+  
+  // 1. Carregar Dados ao Abrir
   useEffect(() => {
-    const loadDefaultPath = async () => {
+    const initializeApp = async () => {
       try {
+        // Carrega caminho padrão
         const path = await window.electronAPI.getDefaultPath();
         if (path) setDefaultPath(path);
-      } catch (e) { console.error(e); }
+
+        // Carrega histórico e biblioteca salvos
+        const savedData = await window.electronAPI.loadData();
+        
+        if (savedData) {
+          setLibraryItems(savedData.library || []);
+          
+          // Tratamento para downloads interrompidos
+          const cleanHistory = (savedData.history || []).map(item => {
+            if (item.status === 'downloading' || item.status === 'pending') {
+              return { ...item, status: 'interrupted', progress: 0 }; // Marca como interrompido se fechou o app no meio
+            }
+            return item;
+          });
+          setDownloadsQueue(cleanHistory);
+        }
+        setIsLoaded(true); // Libera o salvamento automático
+      } catch (e) { console.error("Erro ao inicializar:", e); setIsLoaded(true); }
     };
-    loadDefaultPath();
+    initializeApp();
   }, []);
+
+  // 2. Salvar Automaticamente quando houver mudanças
+  useEffect(() => {
+    if (isLoaded) {
+      const timer = setTimeout(() => {
+        window.electronAPI.saveData({
+          library: libraryItems,
+          history: downloadsQueue
+        });
+      }, 1000); // Debounce de 1 segundo para não salvar a cada milissegundo de progresso
+      return () => clearTimeout(timer);
+    }
+  }, [libraryItems, downloadsQueue, isLoaded]);
+
+
+  // --- RESTO DOS EFEITOS ---
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -89,13 +126,10 @@ const App = () => {
   const analyzeLink = async (inputUrl) => {
     setAnalyzing(true); resetPreview();
     try {
-      // console.log("Analisando:", inputUrl); 
       const analysis = window.electronAPI.analyzeUrl(inputUrl);
-      
       if (analysis.tipo === 'video') {
         const info = await window.electronAPI.fetchVideoInfo(inputUrl);
         if (!info.error) { setPreviewData([info]); setPreviewType('video'); }
-        else console.error(info.error); 
       } else if (analysis.tipo === 'playlist') {
         const result = await window.electronAPI.fetchPlaylistItems(inputUrl);
         if (!result.error && result.items.length > 0) {
@@ -151,15 +185,10 @@ const App = () => {
       total: itemsToDownload.length
     };
 
-    // Adiciona na fila
     setDownloadsQueue(prev => [newDownloadItem, ...prev]);
-    
-    // Limpa input para o próximo, mas NÃO muda a aba, permitindo baixar outro em seguida
     setUrl('');
-    resetPreview(); 
-    // setActiveTab('downloads'); <--- REMOVIDO PARA PERMITIR DOWNLOADS EM CADEIA
+    setActiveTab('downloads');
 
-    // --- DISPARO ---
     if (previewType === 'video') {
       const videoUrl = itemsToDownload[0].url || url;
       
@@ -185,7 +214,6 @@ const App = () => {
       }
 
     } else {
-      // Playlist
       let folderParam = null;
       if (realPath && finalSubFolderName) {
          const separator = window.electronAPI.isWindows ? '\\' : '/';
@@ -195,7 +223,7 @@ const App = () => {
       await window.electronAPI.downloadAllVideos({ 
         items: itemsToDownload, 
         folder: folderParam, 
-        playlistTitle: finalSubFolderName
+        playlistTitle: finalSubFolderName 
       });
 
       const estimatedPath = realPath ? `${realPath}/${finalSubFolderName}` : `${defaultPath}/${finalSubFolderName}`;
@@ -205,7 +233,7 @@ const App = () => {
         count: itemsToDownload.length,
         thumbnail: mainThumbnail,
         path: visualPath,
-        fullPath: folderParam || estimatedPath
+        fullPath: estimatedPath // Salva o caminho para persistência futura
       }, ...prev]);
     }
   };
@@ -266,24 +294,7 @@ const App = () => {
               <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 shadow-2xl">
                 <h2 className="text-lg font-bold mb-1">Novo Download</h2>
                 <p className="text-zinc-400 text-sm mb-6">Cole o link do YouTube para começar</p>
-                
-                {/* --- AQUI ESTÁ A CORREÇÃO NO INPUT --- */}
-                <div className="relative mb-4">
-                  <input 
-                    type="text" 
-                    value={url} 
-                    onChange={(e) => setUrl(e.target.value)} 
-                    disabled={analyzing} // Só bloqueia se estiver analisando o link atual
-                    placeholder="https://youtube.com..." 
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-4 pl-4 pr-24 outline-none focus:border-amber-500 transition font-mono text-sm text-amber-500 disabled:opacity-50" 
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                    <button onClick={handleSelectFolder} title="Alterar destino" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><FolderInput size={20}/></button>
-                    <button onClick={() => window.electronAPI.openDownloadsFolder()} title="Abrir pasta" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><Folder size={20}/></button>
-                  </div>
-                </div>
-                {/* ---------------------------------------- */}
-
+                <div className="relative mb-4"><input type="text" value={url} onChange={(e) => setUrl(e.target.value)} disabled={analyzing} placeholder="https://youtube.com..." className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-4 pl-4 pr-24 outline-none focus:border-amber-500 transition font-mono text-sm text-amber-500 disabled:opacity-50" /><div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1"><button onClick={handleSelectFolder} title="Alterar destino" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><FolderInput size={20}/></button><button onClick={() => window.electronAPI.openDownloadsFolder()} title="Abrir pasta" className="p-2 text-zinc-500 hover:text-amber-500 hover:bg-zinc-800 rounded"><Folder size={20}/></button></div></div>
                 <div className="text-xs text-zinc-500 mb-6 flex gap-2"><span>Salvando em:</span><span className="text-zinc-300 truncate max-w-md">{customPath}</span></div>
                 <button onClick={initiateDownloadProcess} disabled={analyzing || !previewData || (previewType === 'playlist' && selectedItems.size === 0)} className={`w-full py-3 rounded-lg font-bold text-zinc-900 transition ${analyzing || !previewData ? 'bg-zinc-800 text-zinc-500' : 'bg-amber-500 hover:bg-amber-400'}`}>{analyzing ? 'Analisando...' : previewData ? `Baixar ${previewType === 'playlist' ? `(${selectedItems.size} itens)` : 'Vídeo'}` : 'Analisar'}</button>
               </div>
@@ -301,8 +312,8 @@ const App = () => {
               )}
             </div>
           )}
-          {activeTab === 'downloads' && (<div className="max-w-5xl mx-auto space-y-4 animate-fade-in">{downloadsQueue.map(download => (<div key={download.id} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4"><div className="flex gap-4"><img src={download.thumbnail} className="w-24 h-16 object-cover rounded bg-zinc-950" /><div className="flex-1 min-w-0"><div className="flex justify-between mb-2"><h3 className="font-bold truncate">{download.title}</h3><StatusBadge status={download.status} /></div><div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative"><div className={`h-full transition-all duration-500 ${download.status === 'success' ? 'bg-green-500' : download.status === 'error' ? 'bg-red-500' : 'bg-amber-500'}`} style={{width: `${download.progress}%`}} /></div><div className="flex justify-between text-xs text-zinc-500 mt-1"><span>{download.type === 'playlist' ? `${download.items.filter(i=>i.status==='success').length}/${download.total} concluídos` : ''}</span><span>{download.progress}%</span></div></div></div></div>))}</div>)}
-          {activeTab === 'library' && (<div className="max-w-6xl mx-auto animate-fade-in grid grid-cols-1 md:grid-cols-3 gap-6">{libraryItems.map(item => (<LibraryCard key={item.id} item={item} onRename={() => {setRenamingItem(item); setNewNameInput(item.title);}} onDelete={() => deleteLibraryItem(item.id)} />))}</div>)}
+          {activeTab === 'downloads' && (<div className="max-w-5xl mx-auto space-y-4 animate-fade-in">{downloadsQueue.length === 0 && <div className="text-center text-zinc-600 py-20">Nenhum download recente.</div>}{downloadsQueue.map(download => (<div key={download.id} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4"><div className="flex gap-4"><img src={download.thumbnail} className="w-24 h-16 object-cover rounded bg-zinc-950" /><div className="flex-1 min-w-0"><div className="flex justify-between mb-2"><h3 className="font-bold truncate">{download.title}</h3><StatusBadge status={download.status} /></div><div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative"><div className={`h-full transition-all duration-500 ${download.status === 'success' ? 'bg-green-500' : download.status === 'error' ? 'bg-red-500' : (download.status === 'interrupted' ? 'bg-zinc-600' : 'bg-amber-500')}`} style={{width: `${download.progress}%`}} /></div><div className="flex justify-between text-xs text-zinc-500 mt-1"><span>{download.type === 'playlist' ? `${download.items.filter(i=>i.status==='success').length}/${download.total} concluídos` : ''}</span><span>{download.status === 'interrupted' ? 'Interrompido' : download.progress + '%'}</span></div></div></div></div>))}</div>)}
+          {activeTab === 'library' && (<div className="max-w-6xl mx-auto animate-fade-in grid grid-cols-1 md:grid-cols-3 gap-6">{libraryItems.length === 0 && <div className="col-span-3 text-center text-zinc-500 py-20">Biblioteca vazia.</div>}{libraryItems.map(item => (<LibraryCard key={item.id} item={item} onRename={() => {setRenamingItem(item); setNewNameInput(item.title);}} onDelete={() => deleteLibraryItem(item.id)} />))}</div>)}
         </div>
       </main>
     </div>
@@ -310,5 +321,5 @@ const App = () => {
 };
 const LibraryCard = ({ item, onRename, onDelete }) => {const [showMenu, setShowMenu] = useState(false); const menuRef = useRef(null); useEffect(() => {const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); }; document.addEventListener('mousedown', handleClick); return () => document.removeEventListener('mousedown', handleClick);}, []); return (<div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 group relative hover:border-zinc-600 transition"><div className="h-32 bg-zinc-950 relative"><img src={item.thumbnail} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" /><div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" /><div className="absolute top-2 right-2" ref={menuRef}><button onClick={() => setShowMenu(!showMenu)} className="p-1.5 bg-zinc-950/80 rounded-full text-zinc-400 hover:text-white transition"><MoreVertical size={16}/></button>{showMenu && (<div className="absolute right-0 top-8 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-32 z-10 flex flex-col text-sm"><button onClick={() => { onRename(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 flex items-center gap-2"><Edit3 size={14}/> Renomear</button><button onClick={() => { onDelete(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 text-red-400 flex items-center gap-2"><Trash2 size={14}/> Remover</button></div>)}</div><span className="absolute bottom-2 right-2 bg-zinc-950/80 text-xs px-2 py-1 rounded text-zinc-300 flex items-center gap-1"><Music size={12}/> {item.count}</span></div><div className="p-4"><h3 className="font-bold text-zinc-100 truncate" title={item.title}>{item.title}</h3><p className="text-xs text-zinc-500 mt-1 flex items-center gap-1 truncate"><Folder size={10} /> {item.path}</p></div></div>);};
 const SidebarBtn = ({ icon: Icon, label, active, onClick, count }) => (<button onClick={onClick} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition ${active ? 'bg-zinc-900 text-amber-500' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'}`}><div className="flex items-center gap-3"><Icon size={20} /><span>{label}</span></div>{count > 0 && <span className="bg-amber-500 text-zinc-900 text-xs font-bold px-1.5 py-0.5 rounded">{count}</span>}</button>);
-const StatusBadge = ({ status }) => {if (status === 'success') return <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Sucesso</span>; if (status === 'error') return <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded flex items-center gap-1"><XCircle size={12}/> Erro</span>; return <span className="text-xs bg-amber-500/10 text-amber-500 px-2 py-1 rounded flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Baixando</span>;};
+const StatusBadge = ({ status }) => {if (status === 'success') return <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Sucesso</span>; if (status === 'error') return <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded flex items-center gap-1"><XCircle size={12}/> Erro</span>; if (status === 'interrupted') return <span className="text-xs bg-zinc-500/10 text-zinc-500 px-2 py-1 rounded flex items-center gap-1"><AlertTriangle size={12}/> Interrompido</span>; return <span className="text-xs bg-amber-500/10 text-amber-500 px-2 py-1 rounded flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Baixando</span>;};
 const container = document.getElementById('root'); const root = createRoot(container); root.render(<App />);

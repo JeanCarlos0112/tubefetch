@@ -366,3 +366,46 @@ ipcMain.handle('deleteFolder', async (_, folderPath) => {
     return { success: true };
   } catch (error) { return { success: false, error: error.message }; }
 });
+
+// ========================================================
+// 6. PERSISTÊNCIA PROFISSIONAL (ELECTRON-STORE)
+// ========================================================
+
+const Store = require('electron-store');
+
+// Configuração do Banco de Dados Local
+const store = new Store({
+  name: 'tubefetch-db', // Nome do arquivo (sem .json)
+  encryptionKey: 'TubeFetch_Secure_Key_2025', // <--- A MÁGICA: Isso criptografa o arquivo
+  defaults: {
+    library: [],
+    history: []
+  },
+  // fileExtension: 'data', // Opcional: muda a extensão para não parecer json
+  clearInvalidConfig: true // Se o usuário tentar hackear e corromper, reseta automaticamente
+});
+
+ipcMain.handle('saveData', async (_, data) => {
+  try {
+    // Salva de forma atômica e criptografada
+    store.set('library', data.library);
+    store.set('history', data.history);
+    // console.log('Dados salvos com segurança em:', store.path);
+    return { success: true };
+  } catch (error) {
+    console.error("Erro ao salvar dados:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('loadData', async () => {
+  try {
+    // Lê os dados descriptografados automaticamente
+    const library = store.get('library');
+    const history = store.get('history');
+    return { library, history };
+  } catch (error) {
+    console.error("Erro ao carregar dados:", error);
+    return { library: [], history: [] };
+  }
+});

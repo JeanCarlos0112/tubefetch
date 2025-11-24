@@ -60,4 +60,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('video-download-complete', subscription);
   },
   removeAllVideoDownloadCompleteListeners: () => ipcRenderer.removeAllListeners('video-download-complete'),
+  saveData: (data) => ipcRenderer.invoke('saveData', data),
+  loadData: () => ipcRenderer.invoke('loadData'),
 });

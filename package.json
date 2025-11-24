@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "electron-store": "^8.1.0",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
     "lucide-react": "^0.554.0",
