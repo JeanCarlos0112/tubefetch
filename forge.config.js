@@ -85,4 +85,16 @@ module.exports = {
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),
   ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'Jean Carlos',
+          name: 'tubefetch' // Certifique-se que o repo existe no GitHub
+        },
+        prerelease: false
+      }
+    }
+  ],
 };

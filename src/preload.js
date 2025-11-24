@@ -62,4 +62,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAllVideoDownloadCompleteListeners: () => ipcRenderer.removeAllListeners('video-download-complete'),
   saveData: (data) => ipcRenderer.invoke('saveData', data),
   loadData: () => ipcRenderer.invoke('loadData'),
+  verifyLibraryIntegrity: () => ipcRenderer.invoke('verifyLibraryIntegrity'),
+  applyLibrarySync: (data) => ipcRenderer.invoke('applyLibrarySync', data),
+  loginYoutube: () => ipcRenderer.invoke('loginYoutube'),
+  logoutYoutube: () => ipcRenderer.invoke('logoutYoutube'),
+  onLibraryUpdated: (callback) => {
+    const subscription = (_event, value) => callback(value);
+    ipcRenderer.on('library-updated', subscription);
+    return () => ipcRenderer.removeListener('library-updated', subscription);
+  },
 });

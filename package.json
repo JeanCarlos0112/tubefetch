@@ -52,6 +52,7 @@
     "p-limit": "^3.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "semver": "^7.7.3",
     "youtube-dl-exec": "^3.0.21"
   }
 }
