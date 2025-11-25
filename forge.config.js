@@ -90,7 +90,7 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: 'Jean Carlos',
+          owner: 'JeanCarlos0112',
           name: 'tubefetch' // Certifique-se que o repo existe no GitHub
         },
         prerelease: false
