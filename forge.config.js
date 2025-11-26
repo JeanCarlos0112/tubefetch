@@ -5,11 +5,11 @@ module.exports = {
   packagerConfig: {
     asar: true,
     name: 'TubeFetch',
-    executableName: 'tube-fetch', // Nome do executável interno
+    executableName: 'tube-fetch',
     extraResource: [
-      './bin' // Garante que yt-dlp e ffmpeg vão junto
+      './bin'
     ],
-    // icon: './icon' // Se tiver ícone .ico, descomente
+    // icon: './icon'
   },
   rebuildConfig: {},
   makers: [
@@ -17,18 +17,17 @@ module.exports = {
     {
       name: '@electron-forge/maker-wix',
       config: {
-        name: "TubeFetch", // Nome do Atalho
+        name: "TubeFetch",
         exe: "tube-fetch.exe",
         
-        // Detalhes do Instalador
         language: 1046, // 1046 = Português do Brasil
         manufacturer: "Jean Carlos",
-        description: "Baixador de Vídeos e Músicas do YouTube",
+        description: "Baixador de Músicas do YouTube",
         version: "1.0.0",
         
         // Interface do Usuário (UI)
         ui: {
-          chooseDirectory: true, // <--- ISSO PERMITE ESCOLHER A PASTA!
+          chooseDirectory: true,
           // images: {
              // background: 'caminho/para/imagem-fundo.bmp', // Opcional: Imagem lateral do instalador
              // banner: 'caminho/para/imagem-topo.bmp'      // Opcional: Imagem do topo
@@ -36,15 +35,13 @@ module.exports = {
         },
 
         // Atalhos
-        shortcutFolderName: "TubeFetch", // Cria uma pasta no Menu Iniciar
-        programFilesFolderName: "TubeFetch", // Nome da pasta em Arquivos de Programas
+        shortcutFolderName: "TubeFetch",
+        programFilesFolderName: "TubeFetch",
         
         // Opções de Upgrade (Gera UUIDs consistentes para permitir atualização por cima)
         upgradeCode: '58a1539d-6044-4438-8b2e-1234567890ab' // UUID aleatório fixo para este projeto
       }
     },
-    
-    // Mantemos o ZIP como opção portátil
     {
       name: '@electron-forge/maker-zip',
       platforms: ['win32'],
@@ -91,7 +88,7 @@ module.exports = {
       config: {
         repository: {
           owner: 'JeanCarlos0112',
-          name: 'tubefetch' // Certifique-se que o repo existe no GitHub
+          name: 'tubefetch'
         },
         prerelease: false
       }
