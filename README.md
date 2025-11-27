@@ -1,6 +1,6 @@
 # TubeFetch
 
-<img width="2816" height="1536" alt="Image" src="https://github.com/user-attachments/assets/e557d9bc-ee8c-495f-9a94-10158a499cba" />
+<img width="2816" height="1536" alt="img" src="https://github.com/user-attachments/assets/fc3e0577-28bf-4811-896b-d8321cc40d9b" />
 <br />
 
 <h3>O Gerenciador de Downloads Definitivo para YouTube</h3>
