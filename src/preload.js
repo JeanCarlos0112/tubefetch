@@ -1,9 +1,7 @@
-// src/preload.js
 const { contextBridge, ipcRenderer, shell } = require('electron');
-const path = require('path'); // Necessário para join se usarmos no front, mas idealmente backend resolve
+const path = require('path');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Helpers de sistema
   isWindows: process.platform === 'win32',
   
   // Funções de Análise
@@ -41,7 +39,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchVideoInfo: (url) => ipcRenderer.invoke('fetchVideoInfo', url),
   fetchPlaylistItems: (url) => ipcRenderer.invoke('fetchPlaylistItems', url),
   
-  // CORREÇÃO AQUI: Passamos 'args' direto para não perder 'subFolder' e 'targetFolder'
   downloadVideo: (args) => ipcRenderer.invoke('downloadVideo', args),
   
   downloadAllVideos: (args) => ipcRenderer.invoke('downloadAllVideos', args),
