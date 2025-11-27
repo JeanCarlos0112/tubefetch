@@ -16,10 +16,10 @@ const App = () => {
   const [defaultPath, setDefaultPath] = useState('');
   const [libraryItems, setLibraryItems] = useState([]);
   const [downloadsQueue, setDownloadsQueue] = useState([]);
-  const [user, setUser] = useState(null); // <--- NOVO ESTADO PARA O USUÁRIO
+  const [user, setUser] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Estados Home e Modais (Mantidos)
+  // Estados Home e Modais
   const [url, setUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [previewData, setPreviewData] = useState(null);
@@ -60,7 +60,6 @@ const App = () => {
     initializeApp();
   }, []);
 
-  // ... (runIntegrityCheck, useEffect de salvar, debounce URL, handleComplete e helpers MANTIDOS) ...
   const runIntegrityCheck = async () => { const result = await window.electronAPI.verifyLibraryIntegrity(); if (result.error) return; if (result.updates.length > 0) { await window.electronAPI.applyLibrarySync({ updates: result.updates }); const newData = await window.electronAPI.loadData(); setLibraryItems(newData.library); } if (result.removals.length > 0) { await window.electronAPI.applyLibrarySync({ removals: result.removals }); const newData = await window.electronAPI.loadData(); setLibraryItems(newData.library); alert(`AVISO:\n${result.removals.length} itens removidos pois as pastas não foram encontradas.`); } if (result.conflicts.length > 0) { setSyncConflicts(result.conflicts); setActiveTab('library'); } };
   useEffect(() => { if (isLoaded) { const timer = setTimeout(() => { window.electronAPI.saveData({ library: libraryItems, history: downloadsQueue }); }, 1000); return () => clearTimeout(timer); } }, [libraryItems, downloadsQueue, isLoaded]);
   useEffect(() => { const timer = setTimeout(() => { if (url.trim()) analyzeLink(url); else resetPreview(); }, 800); return () => clearTimeout(timer); }, [url]);
@@ -95,11 +94,7 @@ const App = () => {
   // --- FUNÇÃO DE LOGIN ATUALIZADA ---
   const handleLogin = async () => {
     if (user) {
-      // Se já estiver logado, oferece logout (opcional, mas boa prática)
       if(confirm("Deseja desconectar e trocar de conta?")) {
-         // Lógica de logout seria necessária aqui, por enquanto apenas limpamos estado local
-         // Para logout real, precisaríamos limpar cookies no backend.
-         // Vamos focar no login primeiro.
          alert("Para trocar de conta, por favor faça o processo novamente.");
       }
       return;
@@ -109,7 +104,7 @@ const App = () => {
     if (confirm(msg)) {
       const res = await window.electronAPI.loginYoutube();
       if (res.success && res.user) {
-        setUser(res.user); // Atualiza estado com foto e nome
+        setUser(res.user);
         alert(`Bem-vindo, ${res.user.name}!`);
       }
     }
@@ -126,20 +121,20 @@ const App = () => {
   }, []);
 
   const handleLogout = async () => {
-    setShowUserMenu(false); // Fecha menu
+    setShowUserMenu(false);
     if (confirm("Deseja realmente desconectar sua conta?")) {
-      await window.electronAPI.logoutYoutube(); // Apaga cookies no backend
-      setUser(null); // Limpa estado visual
-      // alert("Desconectado."); // Opcional
+      await window.electronAPI.logoutYoutube(); 
+      setUser(null);
+      // alert("Desconectado.");
     }
   };
   
-  // LISTENER DE ATUALIZAÇÃO DA BIBLIOTECA (CORREÇÃO DO 53 -> 51)
+  // LISTENER DE ATUALIZAÇÃO DA BIBLIOTECA
   useEffect(() => {
     if (window.electronAPI?.onLibraryUpdated) {
       const removeListener = window.electronAPI.onLibraryUpdated((newLibrary) => {
         console.log("Biblioteca atualizada pelo Backend (Auditoria):", newLibrary);
-        setLibraryItems(newLibrary); // Atualiza o visual imediatamente
+        setLibraryItems(newLibrary);
       });
       return () => removeListener();
     }
@@ -148,12 +143,10 @@ const App = () => {
   return (
     <div className="flex h-screen bg-zinc-950 font-sans selection:bg-amber-500/30 text-zinc-100 relative">
       
-      {/* Modais (Mantidos) */}
       {syncConflicts.length > 0 && (<div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center animate-fade-in backdrop-blur-md"><div className="bg-zinc-900 p-8 rounded-2xl border border-amber-500/50 shadow-2xl w-[500px] text-center"><div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><FileSearch className="text-amber-500" size={32} /></div><h3 className="text-2xl font-bold mb-2 text-white">Sincronização Necessária</h3><p className="text-zinc-400 text-sm mb-6 leading-relaxed">A pasta original da playlist <strong>"{syncConflicts[currentConflictIndex].title}"</strong> não foi encontrada.<br/><br/>Encontramos uma pasta chamada <strong>"{syncConflicts[currentConflictIndex].foundFolder}"</strong> com {syncConflicts[currentConflictIndex].matchPercentage}% de conteúdo idêntico.<br/><br/>Deseja atualizar sua biblioteca?</p><div className="flex gap-3 justify-center"><button onClick={() => resolveConflict(false)} className="px-6 py-3 rounded-xl border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition font-medium">Não</button><button onClick={() => resolveConflict(true)} className="px-6 py-3 rounded-xl bg-amber-500 text-zinc-900 font-bold hover:bg-amber-400 transition flex items-center gap-2"><RefreshCw size={18}/> Sim</button></div><div className="mt-4 text-xs text-zinc-600">Conflito {currentConflictIndex + 1} de {syncConflicts.length}</div></div></div>)}
       {showSingleVideoFolderModal && (<div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center animate-fade-in backdrop-blur-sm"><div className="bg-zinc-900 p-6 rounded-xl border border-zinc-700 shadow-2xl w-[450px]"><h3 className="text-xl font-bold mb-2 text-white">Organizar Download</h3><p className="text-zinc-400 text-sm mb-6">Deseja criar uma pasta específica para esta música?</p><div className="mb-6"><label className="text-xs text-amber-500 font-bold mb-1 block uppercase">Nome da Pasta Sugerido</label><input autoFocus type="text" value={singleVideoFolderName} onChange={(e) => setSingleVideoFolderName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-amber-500" /></div><div className="flex justify-between gap-3"><button onClick={() => executeDownload(false, null)} className="px-4 py-3 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition text-sm flex-1">Não, salvar solto</button><button onClick={() => executeDownload(true, singleVideoFolderName)} className="px-4 py-3 rounded-lg bg-amber-500 text-zinc-900 font-bold hover:bg-amber-400 transition text-sm flex-1 flex justify-center items-center gap-2"><Plus size={16}/> Sim, criar pasta</button></div></div></div>)}
       {renamingItem && (<div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center animate-fade-in backdrop-blur-sm"><div className="bg-zinc-900 p-6 rounded-xl border border-zinc-700 shadow-2xl w-96"><h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Edit3 size={18} className="text-amber-500"/> Renomear</h3><input autoFocus type="text" value={newNameInput} onChange={(e) => setNewNameInput(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 mb-4 text-white outline-none focus:border-amber-500" /><div className="flex justify-end gap-3"><button onClick={() => setRenamingItem(null)} className="px-4 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition text-sm">Cancelar</button><button onClick={handleRenameConfirm} className="px-4 py-2 rounded-lg bg-amber-500 text-zinc-900 font-bold hover:bg-amber-400 transition text-sm flex items-center gap-2"><Save size={16}/> Salvar</button></div></div></div>)}
 
-      {/* Sidebar (Mantida) */}
       <aside className="w-64 bg-zinc-950 border-r border-zinc-900 flex flex-col p-4 shrink-0">
         <div className="flex items-center gap-3 px-2 mb-8 mt-2"><div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20"><Download className="text-zinc-950" size={20} strokeWidth={3} /></div><span className="text-xl font-bold tracking-tight">TubeFetch</span></div>
         <nav className="space-y-1 flex-1">
@@ -164,10 +157,7 @@ const App = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* --- HEADER ATUALIZADO COM USER PROFILE --- */}
         <header className="h-16 border-b border-zinc-900 flex items-center justify-between px-8 bg-zinc-950 shrink-0 z-20 relative">
-          
-          {/* Barra de Pesquisa */}
           <div className="flex-1 max-w-md relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
             <input 
@@ -179,7 +169,7 @@ const App = () => {
 
           <div className="flex items-center gap-4">
             {user ? (
-              // --- ÁREA DO USUÁRIO LOGADO (SEMPRE VERDE) ---
+              // --- ÁREA DO USUÁRIO LOGADO ---
               <div className="relative" ref={userMenuRef}>
                 <button 
                   onClick={() => setShowUserMenu(!showUserMenu)}
@@ -202,11 +192,9 @@ const App = () => {
                         ● Conectado
                       </span>
                    </div>
-                   {/* Seta indicativa */}
                    <ChevronDown size={14} className={`text-green-600 transition-transform duration-300 ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* --- O DROPDOWN --- */}
                 {showUserMenu && (
                   <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-fade-in flex flex-col">
                     <button 
@@ -220,7 +208,7 @@ const App = () => {
                 )}
               </div>
             ) : (
-              // --- BOTÃO DE CONECTAR (SE NÃO LOGADO) ---
+              // --- BOTÃO DE CONECTAR ---
               <button 
                 onClick={handleLogin}
                 className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 rounded-full transition-all duration-300 text-xs font-bold uppercase tracking-wide hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
@@ -239,11 +227,9 @@ const App = () => {
           </div>
         </header>
 
-        {/* ... (Resto do Conteúdo igual ao anterior) ... */}
         <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
           {activeTab === 'home' && (
             <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-              {/* ... Home Content ... */}
               <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 shadow-2xl">
                 <h2 className="text-lg font-bold mb-1">Novo Download</h2>
                 <p className="text-zinc-400 text-sm mb-6">Cole o link do YouTube para começar</p>
@@ -272,7 +258,6 @@ const App = () => {
     </div>
   );
 };
-// Subcomponentes mantidos (LibraryCard, SidebarBtn, StatusBadge)
 const LibraryCard = ({ item, onRename, onDelete }) => {const [showMenu, setShowMenu] = useState(false); const menuRef = useRef(null); useEffect(() => {const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); }; document.addEventListener('mousedown', handleClick); return () => document.removeEventListener('mousedown', handleClick);}, []); return (<div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 group relative hover:border-zinc-600 transition"><div className="h-32 bg-zinc-950 relative"><img src={item.thumbnail} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" /><div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" /><div className="absolute top-2 right-2" ref={menuRef}><button onClick={() => setShowMenu(!showMenu)} className="p-1.5 bg-zinc-950/80 rounded-full text-zinc-400 hover:text-white transition"><MoreVertical size={16}/></button>{showMenu && (<div className="absolute right-0 top-8 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-32 z-10 flex flex-col text-sm"><button onClick={() => { onRename(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 flex items-center gap-2"><Edit3 size={14}/> Renomear</button><button onClick={() => { onDelete(); setShowMenu(false); }} className="px-3 py-2 text-left hover:bg-zinc-700 text-red-400 flex items-center gap-2"><Trash2 size={14}/> Remover</button></div>)}</div><span className="absolute bottom-2 right-2 bg-zinc-950/80 text-xs px-2 py-1 rounded text-zinc-300 flex items-center gap-1"><Music size={12}/> {item.count}</span></div><div className="p-4"><h3 className="font-bold text-zinc-100 truncate" title={item.title}>{item.title}</h3><p className="text-xs text-zinc-500 mt-1 flex items-center gap-1 truncate"><Folder size={10} /> {item.path}</p></div></div>);};
 const SidebarBtn = ({ icon: Icon, label, active, onClick, count }) => (<button onClick={onClick} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition ${active ? 'bg-zinc-900 text-amber-500' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'}`}><div className="flex items-center gap-3"><Icon size={20} /><span>{label}</span></div>{count > 0 && <span className="bg-amber-500 text-zinc-900 text-xs font-bold px-1.5 py-0.5 rounded">{count}</span>}</button>);
 const StatusBadge = ({ status }) => {if (status === 'success') return <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded flex items-center gap-1"><CheckCircle2 size={12}/> Sucesso</span>; if (status === 'error') return <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded flex items-center gap-1"><XCircle size={12}/> Erro</span>; if (status === 'interrupted') return <span className="text-xs bg-zinc-500/10 text-zinc-500 px-2 py-1 rounded flex items-center gap-1"><AlertTriangle size={12}/> Interrompido</span>; return <span className="text-xs bg-amber-500/10 text-amber-500 px-2 py-1 rounded flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Baixando</span>;};
