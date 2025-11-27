@@ -26,7 +26,17 @@
 </div>
 
 ## 📸 Screenshots
+### 🏠 Home
+<img width="1365" height="669" alt="image" src="https://github.com/user-attachments/assets/c905fbf4-a7c6-41c7-897a-478c659ca1d1" />
+<img width="1365" height="658" alt="image" src="https://github.com/user-attachments/assets/7e5a9b43-9f14-402a-894f-282e5ee0566a" />
 
+### ⬇️ Downloads
+<img width="1364" height="665" alt="image" src="https://github.com/user-attachments/assets/eec701f2-a810-4c47-96eb-848a9681cd53" />
+<img width="1365" height="664" alt="image" src="https://github.com/user-attachments/assets/85633e91-66e7-4482-b137-560d501fe8e6" />
+
+### 📚 Biblioteca
+<img width="1362" height="668" alt="image" src="https://github.com/user-attachments/assets/595d3c24-af1b-4720-8152-a1c303e7e9ee" />
+<img width="1365" height="669" alt="image" src="https://github.com/user-attachments/assets/9d613ea0-2fae-483f-96f3-ce25f021a482" />
 
 ## ✨ Funcionalidades
 O TubeFetch não é apenas um downloader, é um gerenciador inteligente de mídia local.
