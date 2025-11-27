@@ -4,7 +4,7 @@
 
 body {
   @apply bg-zinc-950 text-zinc-100; /* Fundo quase preto */
-  overflow: hidden; /* Evita scroll na janela inteira, usaremos scroll interno */
+  overflow: hidden; /* Evita scroll na janela inteira*/
 }
 
 /* Estilizando a barra de rolagem para ficar Dark */
@@ -13,12 +13,12 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #18181b; /* Zinc 900 */
+  background: #18181b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3f3f46; /* Zinc 700 */
+  background: #3f3f46;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #52525b; /* Zinc 600 */
+  background: #52525b;
 }
