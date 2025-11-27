@@ -92,6 +92,7 @@ npm install
 
 3. **Configuração dos Binários (Crucial):** O projeto depende de `ffmpeg`, `ffprobe` e `yt-dlp`. Crie uma pasta chamada `bin` na raiz do projeto e adicione os executáveis correspondentes para o seu sistema operacional.
 
+```
 raiz-do-projeto/
 ├── bin/
 │   ├── ffmpeg.exe
@@ -99,6 +100,7 @@ raiz-do-projeto/
 │   └── yt-dlp.exe
 ├── src/
 └── package.json
+```
 
 4. Inicie o modo de desenvolvimento:
 ```bash
