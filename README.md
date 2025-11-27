@@ -8,7 +8,7 @@
 
 <p> 
   <a href="https://github.com/JeanCarlos0112/tubefetch/releases"> 
-    <img src="https://img.shields.io/github/v/release/JeanCarlos0112/tubefetch?style=flat-square&color=blue" alt="Latest Release" /> </a> <a href="https://github.com/JeanCarlos0112/tubefetch/blob/main/LICENSE"> <img src="https://img.shields.io/github/license/JeanCarlos0112/tubefetch?style=flat-square" alt="License" /> 
+    <img src="https://img.shields.io/github/v/release/JeanCarlos0112/tubefetch?style=flat-square&color=blue" alt="Latest Release" /> </a> <a href=https://github.com/JeanCarlos0112/tubefetch/blob/main/LICENSE> <img src="https://img.shields.io/github/license/JeanCarlos0112/tubefetch?style=flat-square" alt="License" /> 
   </a> 
   <img src="https://img.shields.io/badge/platform-Windows-0078d7.svg?style=flat-square" alt="Platform Windows" />
   <img src="https://img.shields.io/badge/built%20with-Electron%20%2B%20React-61DAFB.svg?style=flat-square" alt="Built with Electron React" /> 
@@ -130,6 +130,6 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir uma Issue para r
 5. Abra um Pull Request.
 
 ## 📄 Licença
-Este projeto está sob a licença **MIT**. Veja o arquivo LICENSE para mais detalhes.
+Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](https://github.com/JeanCarlos0112/tubefetch/blob/main/LICENSE) para mais detalhes.
 
 <div align="center"> Feito com 💜 por <a href="https://github.com/JeanCarlos0112">Jean Carlos</a> </div>
