@@ -1,6 +1,6 @@
 # TubeFetch
 
-<div align="center"> <img src="./assets/icon.png" alt="TubeFetch Logo" width="120" height="120" />
+<img width="2816" height="1536" alt="Image" src="https://github.com/user-attachments/assets/e557d9bc-ee8c-495f-9a94-10158a499cba" />
 <br />
 
 <h3>O Gerenciador de Downloads Definitivo para YouTube</h3>
