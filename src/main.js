@@ -17,8 +17,8 @@ const CPU_CORES = os.cpus().length;
 
 const store = new Store({
   name: 'tubefetch-db',
-  encryptionKey: 'TubeFetch_Secure_Key_2025', // Protege seus cookies
-  defaults: { library: [], history: [], userCookies: '' }, // userCookies guarda a string segura
+  encryptionKey: 'TubeFetch_Secure_Key_2025',
+  defaults: { library: [], history: [], userCookies: '' },
   clearInvalidConfig: true
 });
 
@@ -51,7 +51,6 @@ if (app.isPackaged) {
 
 const userBinPath = path.join(app.getPath('userData'), 'bin');
 
-// Remove cookies.txt antigo se existir (Limpeza de segurança)
 const oldCookiesPath = path.join(userBinPath, 'cookies.txt');
 if (fs.existsSync(oldCookiesPath)) {
     try { fs.unlinkSync(oldCookiesPath); console.log("Cookies antigos inseguros removidos."); } catch(e){}
@@ -125,7 +124,6 @@ function generateTempCookieFile() {
   const storedCookies = store.get('userCookies');
   if (!storedCookies) return null;
 
-  // Cria um arquivo com nome aleatório para evitar colisão em downloads paralelos
   const tempPath = path.join(userBinPath, `sec-${Date.now()}-${Math.floor(Math.random()*1000)}.txt`);
   try {
     fs.writeFileSync(tempPath, storedCookies, 'utf-8');
@@ -349,8 +347,6 @@ ipcMain.handle('loginYoutube', async () => {
             // --- SEGURANÇA: SALVA NO STORE CRIPTOGRAFADO ---
             store.set('userCookies', netscapeContent);
             console.log("Cookies salvos com segurança no Store.");
-
-            // Pega Info do Usuário
             await loginWindow.loadURL('https://www.youtube.com/account');
             const userInfo = await loginWindow.webContents.executeJavaScript(`
               new Promise((resolve) => {
@@ -380,9 +376,8 @@ ipcMain.handle('loginYoutube', async () => {
 
 // Logout
 ipcMain.handle('logoutYoutube', async () => {
-  store.delete('userCookies'); // Apaga do cofre
+  store.delete('userCookies');
   store.delete('userInfo');
-  // Limpa sessão do Electron
   await session.fromPartition('persist:youtube-session').clearStorageData();
   return { success: true };
 });
@@ -528,7 +523,7 @@ ipcMain.handle('applyLibrarySync', async (_, { updates, removals }) => {
 const semver = require('semver');
 const { net } = require('electron');
 
-const GITHUB_REPO = 'JeanCarlos0112/youtube-audio-app-extractor'; // Seu repositório
+const GITHUB_REPO = 'JeanCarlos0112/youtube-audio-app-extractor';
 
 async function checkForUpdates() {
   if (IS_DEV) {
@@ -540,18 +535,15 @@ async function checkForUpdates() {
 
   try {
     const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
-    if (!response.ok) return; // Falha silenciosa se sem internet
+    if (!response.ok) return;
 
     const data = await response.json();
-    const latestVersion = data.tag_name.replace('v', ''); // Remove 'v' se tiver (ex: v1.0.1 -> 1.0.1)
+    const latestVersion = data.tag_name.replace('v', '');
     const currentVersion = app.getVersion();
 
     console.log(`Versão Atual: ${currentVersion} | Última: ${latestVersion}`);
 
-    // Se a versão do GitHub for maior que a atual
     if (semver.gt(latestVersion, currentVersion)) {
-      
-      // Procura o arquivo .msi nos assets da release
       const msiAsset = data.assets.find(asset => asset.name.endsWith('.msi'));
       
       if (msiAsset) {
@@ -563,7 +555,7 @@ async function checkForUpdates() {
           detail: 'O download será feito e o instalador abrirá automaticamente.'
         });
 
-        if (choice.response === 0) { // Clicou em "Atualizar Agora"
+        if (choice.response === 0) {
           downloadAndInstallUpdate(msiAsset.browser_download_url, msiAsset.name);
         }
       }
@@ -572,15 +564,12 @@ async function checkForUpdates() {
     console.error("Erro ao verificar update:", error);
   }
 }
-
 function downloadAndInstallUpdate(url, filename) {
   const tempPath = path.join(app.getPath('temp'), filename);
   const file = fs.createWriteStream(tempPath);
 
-  // Mostra progresso simplificado (opcional) ou apenas baixa em background
   console.log(`Baixando update de: ${url}`);
   
-  // Usa net do Electron ou https nativo
   const request = require('https').get(url, (response) => {
     response.pipe(file);
     
@@ -588,7 +577,6 @@ function downloadAndInstallUpdate(url, filename) {
       file.close();
       console.log("Download concluído. Executando instalador...");
       
-      // Executa o MSI e fecha o app atual
       shell.openPath(tempPath).then(() => {
         app.quit();
       });
